@@ -9,7 +9,6 @@ import torch.nn as nn
 def cosine_simililarity_dim1(x, y):
     return -F.cosine_similarity(x, y, dim=1)
 
-
 def loss_fn(history, future, similarity, temperature=0.1):
     loss, pos, neg = nce_loss_fn(history, future, similarity, temperature)
     return loss, pos, neg
@@ -17,18 +16,18 @@ def loss_fn(history, future, similarity, temperature=0.1):
 def nce_loss_fn(history, future,
                 temperature=0.1,
                 reduction='sum'):
-    device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+    similarity = nn.CosineSimilarity(dim=2)
     N = history.shape[0]
-    sim = -F.cosine_similarity(torch.unsqueeze(history, dim=1), 
-                                torch.unsqueeze(future, dim=0), dim=2)
-    
+    sim = similarity(torch.unsqueeze(history, dim=1), 
+                                    torch.unsqueeze(future, dim=0))
     pos_sim = torch.exp(torch.linalg.diagonal(sim)/temperature)
-
-    tri_mask = np.ones(N ** 2, dtype= bool).reshape(N, N)
-    tri_mask[np.diag_indices(N)] = False
+    
+    tri_mask = np.logical_not(np.eye(N, dtype=bool))
+    device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
     tri_mask = torch.tensor(tri_mask).to(device)
     
-    neg = torch.masked_select(sim, tri_mask).reshape(N, N - 1)
+    neg = torch.masked_select(sim, tri_mask).reshape(N, N - 1) #Except i, j 
+    
     all_sim = torch.exp(sim/temperature)
     
     logits = torch.divide(pos_sim.sum(), all_sim.sum(axis=1))
@@ -38,11 +37,38 @@ def nce_loss_fn(history, future,
     loss = logits.sum()
     # divide by the size of batch
     loss = loss / lbl.shape[0]
-    # similarity of positive pairs (only for debug)
     mean_sim = torch.mean(torch.linalg.diagonal(sim))
     mean_neg = torch.mean(neg)
     return loss, mean_sim, mean_neg
 
+
+
+def loss_compute(encoded,predicted, debug=True):
+    encoded = F.normalize(encoded, dim=1)
+    predicted = F.normalize(predicted, dim=1)
+    eye_shape=encoded.shape[0]
+    if debug:
+        print(encoded.shape)
+        print(eye_shape)
+    target=torch.eye(eye_shape)
+    if debug:
+        print(target[1:].shape)
+        print(target[0].shape)
+        print(target.shape)
+        print(eye_shape)
+    target=torch.cat((target[1:],target[0].reshape(1,-1)))
+    target[-1][0]=0
+    target[-1][-1]=1
+    target=target.reshape(1,eye_shape,-1).repeat(encoded.shape[1],1,1).to('cuda:0')
+    if debug:
+        print("diag_shape:",target.shape)
+    m=nn.Softmax(dim=1)
+    
+    loss_method=nn.BCEWithLogitsLoss()
+    prod=torch.bmm(encoded.view(encoded.shape[1],eye_shape,-1),predicted.view(predicted.shape[1],-1,eye_shape))
+    prod = m(prod)
+    
+    return loss_method(prod,target)
 
 def dcl_loss_fn(history, future, similarity, temperature='0.1', debiased=True, tau_plus=0.1):
     # from Debiased Contrastive Learning paper: https://github.com/chingyaoc/DCL/
@@ -59,6 +85,7 @@ def dcl_loss_fn(history, future, similarity, temperature='0.1', debiased=True, t
     tri_mask = np.ones(N ** 2, dtype=np.bool).reshape(N, N)
     tri_mask[np.diag_indices(N)] = False
     neg = torch.masked_select(sim, tri_mask).reshape(N, N-1)
+    
     neg_sim = torch.exp(neg/temperature)
 
     # estimator g()

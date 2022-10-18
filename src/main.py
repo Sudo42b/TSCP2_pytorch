@@ -29,8 +29,8 @@ with initialize(version_base=None, config_path='./config/'):
     print('interface of running experiments for TSCP2 baselines')
     DATA_PATH = args.exp_param.data_path
     OUTPUT_DIR = args.exp_param.output_dir
-    OUTPUT_PATH = os.path.join(args.exp_param.output_dir,args.exp_param.dataset)
-    MODEL_PATH = os.path.join(args.exp_param.output_dir, "model")
+    OUTPUT_PATH = os.path.join(args.exp_param.output_dir, args.exp_param.dataset)
+    MODEL_PATH = os.path.join(args.exp_param.output_dir, args.exp_param.dataset, "model")
     DATASET_NAME = args.exp_param.dataset
     LOSS = args.exp_param.loss
     SIM = args.exp_param.sim
@@ -90,19 +90,17 @@ val_ds = Load_Dataset(DATA_PATH,
 # 2 TRAINING
 # ------------------------
 # Model Load!
-from models.resnet1d import ResNet1D, BasicBlock1D
-# model = ResNet1D(BasicBlock1D, [2, 2, 2, 2])
-model = TSCP(input_size= (BATCH_SIZE, WINDOW_SIZE, 1), 
-                    hidden_dim= (WINDOW_SIZE//2), 
-                    output_size= ENCODE_DIM, #Encoder part
-                    tcn_out_channel=64, 
-                    num_channels= [3, 5, 7],
-                    kernel_size= 4, dropout= 0.2, batch_norm=False,
-                    attention=False, 
-                    non_linear= 'relu')
-
-
+model = TSCP(input_size= 1, 
+            output_size= ENCODE_DIM, #Encoder part
+            hidden_dim= WINDOW_SIZE, 
+            num_channels= [1, 32, 64],
+            kernel_size= 4, 
+            dropout= False, 
+            batch_norm=True,
+            attention=False, 
+            non_linear= 'relu')
 DEVICE = torch.device(GPU if torch.cuda.is_available() else 'cpu')
+model.to(DEVICE)
 
 #### DATA PARALLEL START ####
 if torch.cuda.device_count() > 1:
@@ -116,14 +114,15 @@ lr_scheduler = CosineAnnealingWarmUpRestarts(optimizer=optimizer,
                                             T_mult= 1,
                                             gamma= 0.5,
                                             eta_max=LR)
+from utils.lr_scheduler import LR_Scheduler
+lr_scheduler = LR_Scheduler('cosine', LR, EPOCHS,
+                            iters_per_epoch=len(train_ds), warmup_epochs=1)
 
 from models.losses import InfoNCE
-from models.losses import nce_loss_fn
+from models.losses import nce_loss_fn, loss_compute
 criterion = InfoNCE(temperature=TEMP, reduction='mean')
-# criterion = nce_loss_fn
-#BCEWithLogitsLoss(reduction='sum')
+
 if SIM == "cosine":
-    # ls.cosine_simililarity_dim1
     similarity = ls.cosine_simililarity_dim1
 from utils.log_writer import Logger
 from utils.trainer import Trainer
@@ -143,10 +142,10 @@ trainer = Trainer(train_set= train_ds,
                     device= DEVICE)
 
 train_log, val_log = trainer.train_loop(epochs= EPOCHS,
-                        win_sz= WINDOW_SIZE,
-                        temp= 0.1, 
-                        beta= BETA, 
-                        tau= TAU)
+                                        win_sz= WINDOW_SIZE,
+                                        temp= 0.1, 
+                                        beta= BETA, 
+                                        tau= TAU)
 
 # SAVE MODEL and Learning Progress plot
 #with plt.xkcd():
@@ -166,23 +165,43 @@ if splot ==1:
 # 4 TEST SET & SEGMENTATION
 # -------------------------
 from utils.metric import estimate_CPs
-model.eval()
-log, gt, y_sim = trainer.test_loop(win_sz=WINDOW_SIZE)
-result = estimate_CPs(sim=y_sim, gt=gt, threshold=0.5)
+from torch.functional import F
+
+
+label_gt = val_ds.y
+X_test = val_ds.X
+num = X_test.shape[0]
+X1 = torch.FloatTensor(X_test[:, 0:WINDOW_SIZE].reshape((num, 1, WINDOW_SIZE))).to(DEVICE)
+X2 = torch.FloatTensor(X_test[:, WINDOW_SIZE:].reshape((num, 1, WINDOW_SIZE))).to(DEVICE)
+X1 = model(X1)
+X2 = model(X2)
+
+X1 = F.normalize(X1, dim=1)
+X2 = F.normalize(X2, dim=1)
+
+rep_sim = F.cosine_similarity(X1, X2, dim=1).detach().cpu().numpy()
 
 np.savetxt(os.path.join(OUTPUT_PATH, "pred_sim", train_name + "_pred_sim.csv"), 
-            np.concatenate((gt, np.array(y_sim).reshape((y_sim.shape[0],1))),1),
-            delimiter=',',
-            header="lbl,"+LOSS, comments="")
+            np.concatenate((label_gt, np.array(rep_sim).reshape((rep_sim.shape[0],1))),1), 
+            delimiter=',', header="lbl,"+LOSS, comments="")
 print("Saved test similarity result!")
 
 
-print('Average similarity for test set : Reps : {}'.format(np.mean(y_sim)))
+print('Average similarity for test set : Reps : {}'.format(np.mean(rep_sim)))
+gt = np.zeros(label_gt.shape[0])
+print(int(2 * WINDOW_SIZE * 0.15)), (int(2 * WINDOW_SIZE * 0.85))
+gt[np.where((X_test > int(2 * WINDOW_SIZE * 0.15)) & (X_test < int(2 * WINDOW_SIZE * 0.85)))[0]] = 1
+THRESHOLD = train_log['train_sim'][-1] - ((train_log['train_sim'][-1]-train_log['train_neg'][-1])/3)
+result = estimate_CPs(sim= rep_sim,
+                        gt= gt,
+                        path= os.path.join(OUTPUT_DIR, "plots", f'{train_name}.png'),
+                        metric= SIM, 
+                        threshold= THRESHOLD)
 
 with open(os.path.join(OUTPUT_PATH, "Evaluation2.txt"), "a") as out_file:
-    out_file.write(f"{BATCH_SIZE}, {WINDOW_SIZE}, {ENCODE_DIM},{optimizer.state_dict()},\
-                    {TEMP}, {LR}, {np.mean(train_log['train_loss'])}, {train_log['train_sim'][-1]}, \
-                    {train_log['train_neg'][-1]}, {result}")
+    out_file.write(str(BATCH_SIZE) + "," + str(WINDOW_SIZE) + "," + str(ENCODE_DIM) + "," + str(TEMP) + "," + str(LR)
+                + "," + str(np.mean(train_log['train_loss']))+ ","+str(train_log['train_sim'][-1]) + "," +str(train_log['train_neg'][-1])+","+result)
+    out_file.close()
     print("Saved model to disk")
 
 # -------------------------
@@ -190,12 +209,12 @@ with open(os.path.join(OUTPUT_PATH, "Evaluation2.txt"), "a") as out_file:
 # -------------------------
 
 import torch
-writer.close()
+writer.close() #Torch Summarize Close!
 torch.save(model.state_dict(), os.path.join(MODEL_PATH, train_name + ".pth"))
 print("Saved model to disk")
-import json
 
+import json
 with open(os.path.join(MODEL_PATH, train_name + ".json"), 'w') as outfile:
     #json_file.write(model_json)
-    json.dump(model, outfile, indent=4, sort_keys=True)
-    print("Saved model to disk")
+    json.dump(str(model), outfile, indent=4, sort_keys=True)
+    print("Saved model Structure json to disk")

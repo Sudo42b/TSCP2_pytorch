@@ -55,8 +55,7 @@ class Load_Dataset(Dataset):
         
         X_train, X_test, y_train, y_test = train_test_split(self.X, self.y, 
                                                         train_size=0.8, 
-                                                        shuffle=True, 
-                                                        stratify=self.y, 
+                                                        shuffle=False, 
                                                         random_state=13130132)
         
         if mode == 'train':

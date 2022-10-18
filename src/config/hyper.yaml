@@ -7,15 +7,15 @@ exp_param:
   gpu: 'cuda' #'gpu device id'
 
 hyper_param: #interface of running experiments for TSCP2 baselines
-  encode_feature: 10 #'Size of encoded features'
+  encode_feature: 20 #'Size of encoded features'
   window_size: 100
   beta: 1  #'parameter for FN loss function or threshold for FC loss function'
-  epoch: 1000 # max iteration for training
-  lr: 0.0001 #learning rate
+  epoch: 100 # max iteration for training
+  lr: 1e-4 #learning rate
   batch_size: 64 # batch_size for training
   eval_freq: 25 #'evaluation frequency per batch updates'
   temp_pram: 0.1 #Temperature parameter for NCE loss function
   tau: 0.1 # parameter for Debiased contrastive loss function
-  decay_steps: 100
-  criterion: 'BCE'
-  patience: 10
+  decay_steps: 1000
+  criterion: 'NCE'
+  patience: 50
