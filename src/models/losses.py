@@ -22,7 +22,8 @@ def nce_loss_fn(history, future,
                                     torch.unsqueeze(future, dim=0))
     pos_sim = torch.exp(torch.linalg.diagonal(sim)/temperature)
     
-    tri_mask = np.logical_not(np.eye(N, dtype=bool))
+    tri_mask = np.logical_not(np.eye(N, dtype=bool)) #np.fill_diagonal(0)
+    
     device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
     tri_mask = torch.tensor(tri_mask).to(device)
     

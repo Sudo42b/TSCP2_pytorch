@@ -1,9 +1,10 @@
 # TSCP2_pytorch
 Time Series Change Point Detection based on Contrastive Predictive Coding pytorch implementation
-[![issues](https://img.shields.io/github/issues/lee-seon-woo/TSCP2_pytorch)](https://github.com/hazdzz/STGCN/issues)
-[![forks](https://img.shields.io/github/forks/lee-seon-woo/TSCP2_pytorch)](https://github.com/hazdzz/STGCN/network/members)
-[![stars](https://img.shields.io/github/stars/lee-seon-woo/TSCP2_pytorch)](https://github.com/hazdzz/STGCN/stargazers)
-[![License](https://img.shields.io/github/license/lee-seon-woo/TSCP2_pytorch)](./LICENSE)
+
+[![forks](https://img.shields.io/github/forks/lee-seon-woo/tscp2_pytorch?style=plastic)](https://github.com/LEE-SEON-WOO/TSCP2_pytorch/network/members)
+[![stars](https://img.shields.io/github/stars/lee-seon-woo/tscp2_pytorch?style=plastic)](https://github.com/LEE-SEON-WOO/TSCP2_pytorch/stargazers)
+[![issues](https://img.shields.io/github/issues/lee-seon-woo/tscp2_pytorch)](https://github.com/LEE-SEON-WOO/TSCP2_pytorch/issues)
+[![License](https://img.shields.io/github/license/lee-seon-woo/tscp2_pytorch)](./LICENSE)
 
 * This repo covers an reference implementation for the following papers in PyTorch. Official Code and Paper as follow: [Tensorflow2: Repository](https://github.com/cruiseresearchgroup/TSCP2) and [TSCP2: Deldari, Shohreh and Smith, Daniel V. and Xue, Hao and Salim, Flora D.](https://arxiv.org/abs/2011.14097)
 ## Dataset
