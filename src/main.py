@@ -120,8 +120,9 @@ lr_scheduler = LR_Scheduler('cosine', LR, EPOCHS,
 
 from models.losses import InfoNCE
 from models.losses import nce_loss_fn, loss_compute
+from models.ContrastiveLoss import ContrastiveLoss
 criterion = InfoNCE(temperature=TEMP, reduction='mean')
-
+criterion = ContrastiveLoss(batch_size=BATCH_SIZE, temperature=TEMP)
 if SIM == "cosine":
     similarity = ls.cosine_simililarity_dim1
 from utils.log_writer import Logger
@@ -214,6 +215,7 @@ torch.save(model.state_dict(), os.path.join(MODEL_PATH, train_name + ".pth"))
 print("Saved model to disk")
 
 import json
+from models.ContrastiveLoss import ContrastiveLoss
 with open(os.path.join(MODEL_PATH, train_name + ".json"), 'w') as outfile:
     #json_file.write(model_json)
     json.dump(str(model), outfile, indent=4, sort_keys=True)

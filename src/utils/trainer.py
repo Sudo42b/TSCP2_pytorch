@@ -13,7 +13,7 @@ from torch.nn import Module
 from torch import optim
 from torch.optim import lr_scheduler
 from torch.utils.tensorboard import SummaryWriter
-import pandas as pd
+
 class Trainer(object):
     def __init__(self, 
                 train_set:Dataset, 
@@ -128,8 +128,9 @@ class Trainer(object):
             # Forward pass
             X1 = self.model(X1)
             X2 = self.model(X2)
-            X1 = F.normalize(X1, dim=1)
-            X2 = F.normalize(X2, dim=1)
+            
+            # X1 = F.normalize(X1, dim=1)
+            # X2 = F.normalize(X2, dim=1)
             loss, sim_mean, sim_neg = self.loss_fn(X1, X2)
             
             # Backward pass + optimize
@@ -177,8 +178,8 @@ class Trainer(object):
                 # Forward pass
                 X1 = self.model(X1)
                 X2 = self.model(X2)
-                X1 = F.normalize(X1, dim=1)
-                X2 = F.normalize(X2, dim=1)
+                # X1 = F.normalize(X1, dim=1)
+                # X2 = F.normalize(X2, dim=1)
                 loss, sim_mean, sim_neg = self.loss_fn(X1, X2)
                 
             # Update batch metrics
